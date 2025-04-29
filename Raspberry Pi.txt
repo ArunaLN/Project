@@ -1,0 +1,35 @@
+#Raspberry Pi
+import paho.mqtt.client as mqtt
+import time
+
+# กำหนดที่อยู่ของ MQTT Broker (Raspberry Pi ที่รัน Mosquitto)
+broker_address = "192.168.1.100"  # เปลี่ยนเป็น IP ของ Raspberry Pi 5
+topic = "arduino/command"
+
+# สร้าง MQTT Client
+client = mqtt.Client()
+
+# ฟังก์ชันเชื่อมต่อกับ MQTT Broker
+def connect_mqtt():
+    while True:
+        try:
+            client.connect(broker_address, 1883, 60)
+            print("✅ MQTT Connected")
+            break
+        except Exception as e:
+            print(f"⚠️ Failed to connect: {e}, retrying...")
+            time.sleep(5)  # ลองใหม่ทุก 5 วินาที
+
+connect_mqtt()  # เชื่อมต่อครั้งแรก
+
+while True:
+    command = input("Enter command (MOTOR_ON / MOTOR_OFF / EXIT): ").strip().upper()
+    
+    if command in ["MOTOR_ON", "MOTOR_OFF"]:
+        client.publish(topic, command)
+        print(f"📤 Sent command: {command}")
+    elif command == "EXIT":
+        print("🚪 Exiting program...")
+        break
+    else:
+        print("⚠️ Invalid command. Try again.")
