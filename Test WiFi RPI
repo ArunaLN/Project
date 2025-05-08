@@ -1,0 +1,10 @@
+import requests
+import time
+
+esp32_ip = "http://192.168.1.50"  # แทนด้วย IP จริงของ ESP32
+
+# ส่งคำสั่งไปยัง ESP32 ให้เปิดมอเตอร์
+for _ in range(3):
+    response = requests.post(f"{esp32_ip}/vibrate")
+    print("Sent command to ESP32:", response.status_code)
+    time.sleep(6)  # รอให้ทำงานรอบละ 5 วินาที + เผื่อเวลาเล็กน้อย
