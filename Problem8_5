@@ -1,0 +1,149 @@
+import cv2
+import tensorflow as tf
+import math as m
+import time
+import os
+import numpy as np
+from ai_edge_litert.interpreter import Interpreter
+
+# สร้าง directory output หากยังไม่มี
+output_dir = '/home/raspberrypi5/Desktop/Project21/mediapipe_output'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+output_video_path = os.path.join(output_dir, 'posture_output_tflite.mp4')
+
+# โหลดโมเดล TensorFlow Lite (เปลี่ยนเป็น path ของคุณ)
+model_path = '/home/raspberrypi5/Desktop/Project21/4.tflite'  # Path to your MoveNet model
+interpreter = Interpreter(model_path="4.tflite")
+interpreter.allocate_tensors()
+
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+# เริ่มใช้งานกล้อง
+cap = cv2.VideoCapture(0)
+
+# ตั้งค่าขนาดและ fps ของวิดีโอ
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+fps = 15
+
+# สร้าง VideoWriter
+video_writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (640, 480))
+
+good_frames, bad_frames = 0, 0
+font = cv2.FONT_HERSHEY_SIMPLEX
+
+# Function definitions
+def findDistance(x1, y1, x2, y2):
+    return m.sqrt((x2-x1)**2 + (y2-y1)**2)
+
+def findAngle(x1, y1, x2, y2):
+    if y1 == 0: y1 = 1  # Prevent division by zero
+    theta = m.acos((y2 - y1) * (-y1) / (m.sqrt((x2 - x1)**2 + (y2 - y1)**2) * y1))
+    return int(180/m.pi * theta)
+
+def sendWarning():
+    print("WARNING: Bad posture too long!")
+
+def preprocess_frame(frame, input_size):
+    """Resize and normalize the frame for MoveNet."""
+    img_resized = cv2.resize(frame, (input_size[1], input_size[0]))  # Corrected order
+    img_normalized = (img_resized.astype(np.float32) / 255.0)
+    img_input = img_normalized.reshape(1, input_size[0], input_size[1], 3) # Add batch dimension
+    return img_input
+
+def draw_prediction_on_image(frame, keypoints, confidence_threshold=0.3):
+    """Draw the keypoints and skeleton on the frame."""
+    h, w = frame.shape[:2]
+    # Define the connections between keypoints (skeleton)
+    connections = [
+        (0, 1), (1, 2), (2, 3), (3, 4), (5, 6), (6, 7), (7, 8), (9, 10),
+        (11, 12), (12, 13), (13, 14), (14, 15), (15, 16), (11, 23),
+        (12, 24), (23, 24), (23, 25), (24, 26), (25, 27), (26, 28),
+        (27, 29), (28, 30), (29, 31), (30, 32)
+    ]
+
+    for kp in keypoints:
+        if kp[2] > confidence_threshold:
+            x, y = int(kp[0] * w), int(kp[1] * h)
+            cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)  # Draw keypoint
+
+    for start_kp, end_kp in connections:
+        if keypoints[start_kp][2] > confidence_threshold and keypoints[end_kp][2] > confidence_threshold:
+            x1, y1 = int(keypoints[start_kp][0] * w), int(keypoints[start_kp][1] * h)
+            x2, y2 = int(keypoints[end_kp][0] * w), int(keypoints[end_kp][1] * h)
+            cv2.line(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)  # Draw skeleton line
+    return frame
+
+print("Starting posture detection with TensorFlow Lite...")
+input_size = input_details[0]['shape'][1:3] # Get input size from model
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Failed to read frame from camera")
+        break
+
+    h, w = frame.shape[:2]
+
+    # Preprocess the frame for MoveNet
+    img_input = preprocess_frame(frame, input_size)
+
+    # Perform pose estimation with TensorFlow Lite
+    interpreter.set_tensor(input_details[0]['index'], img_input)
+    interpreter.invoke()
+    keypoints_output = interpreter.get_tensor(output_details[0]['index'])[0] #remove batch dimension
+
+    # Reshape keypoints for easier handling
+    keypoints = keypoints_output.reshape(17, 3)  # 17 keypoints, each with (x, y, confidence)
+
+    # Draw the keypoints and skeleton on the original frame
+    frame_with_pose = draw_prediction_on_image(frame.copy(), keypoints) # Pass a copy to avoid modifying original
+
+    # Get landmark coordinates.  Adjusted to use the correct keypoint indices from MoveNet.
+    l_shldr_index = 5  # LEFT_SHOULDER
+    r_shldr_index = 6  # RIGHT_SHOULDER
+    l_ear_index = 3    # LEFT_EAR
+    l_hip_index = 11   # LEFT_HIP
+
+    if l_shldr_index < len(keypoints) and r_shldr_index < len(keypoints) and l_ear_index < len(keypoints) and l_hip_index < len(keypoints):
+        l_shldr_x, l_shldr_y = int(keypoints[l_shldr_index][0] * w), int(keypoints[l_shldr_index][1] * h)
+        r_shldr_x, r_shldr_y = int(keypoints[r_shldr_index][0] * w), int(keypoints[r_shldr_index][1] * h)
+        l_ear_x, l_ear_y = int(keypoints[l_ear_index][0] * w), int(keypoints[l_ear_index][1] * h)
+        l_hip_x, l_hip_y = int(keypoints[l_hip_index][0] * w), int(keypoints[l_hip_index][1] * h)
+
+        offset = findDistance(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
+        neck_angle = findAngle(l_shldr_x, l_shldr_y, l_ear_x, l_ear_y)
+        torso_angle = findAngle(l_hip_x, l_hip_y, l_shldr_x, l_shldr_y)
+
+        if neck_angle < 40 and torso_angle < 10:
+            bad_frames = 0
+            good_frames += 1
+            color = (0, 255, 0)
+        else:
+            good_frames = 0
+            bad_frames += 1
+            color = (0, 0, 255)
+
+        cv2.putText(frame_with_pose, f'Neck: {neck_angle}  Torso: {torso_angle}', (10, 30), font, 0.6, color, 2)
+        time_good = good_frames / fps
+        time_bad = bad_frames / fps
+
+        if time_bad > 180:
+            sendWarning()
+
+        cv2.putText(frame_with_pose, f'Time Good: {round(time_good,1)}s  Bad: {round(time_bad,1)}s', (10, h - 10), font, 0.6, color, 2)
+
+    # บันทึกวิดีโอ
+    video_writer.write(frame_with_pose)
+
+    # แสดงผล (ถ้าต่อหน้าจอ)
+    cv2.imshow("Posture Detection", frame_with_pose)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+video_writer.release()
+cv2.destroyAllWindows()
