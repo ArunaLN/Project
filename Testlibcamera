@@ -1,0 +1,29 @@
+import subprocess
+import os
+
+# 1. บันทึกวิดีโอเป็น .h264
+print("กำลังบันทึกวิดีโอ...")
+subprocess.run([
+    "libcamera-vid",
+    "-t", "10000",              # เวลา 10 วินาที (มิลลิวินาที)
+    "-o", "video.h264",
+    "--width", "640",
+    "--height", "480",
+    "--framerate", "30"
+])
+
+# 2. แปลง .h264 เป็น .mp4 และเพิ่มข้อความ "open"
+print("กำลังแปลงวิดีโอและเพิ่มข้อความ...")
+
+subprocess.run([
+    "ffmpeg",
+    "-i", "video.h264",
+    "-vf", "drawtext=text='open':fontcolor=white:fontsize=36:x=10:y=10",
+    "-c:a", "copy",
+    "video_with_text.mp4"
+])
+
+# 3. ลบไฟล์ .h264 หากไม่ต้องการเก็บไว้
+os.remove("video.h264")
+
+print("เสร็จสิ้น: ได้ไฟล์ video_with_text.mp4")
