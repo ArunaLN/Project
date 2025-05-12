@@ -1,0 +1,117 @@
+import cv2
+import tensorflow as tf
+import numpy as np
+import math as m
+import os
+
+# Paths
+input_video_path = '/home/raspberrypi5/Downloads/IMG_7021.MOV'
+output_dir = '/home/raspberrypi5/mediapipe_output'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+output_video_path = os.path.join(output_dir, 'posture_output.mp4')
+
+# Load MoveNet model
+interpreter = tf.lite.Interpreter(model_path="4.tflite")
+interpreter.allocate_tensors()
+
+# Input/Output tensors
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+# Video capture
+cap = cv2.VideoCapture(input_video_path)
+frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+video_writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (640, 480))
+
+# Colors & fonts
+font = cv2.FONT_HERSHEY_SIMPLEX
+green = (127, 255, 0)
+red = (50, 50, 255)
+yellow = (0, 255, 255)
+
+def findDistance(x1, y1, x2, y2):
+    return m.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+def findAngle(x1, y1, x2, y2):
+    if y1 == 0: y1 = 1
+    theta = m.acos((y2 - y1) * (-y1) / (m.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) * y1))
+    return int(180 / m.pi * theta)
+
+def process_frame(frame):
+    input_data = cv2.resize(frame, (192, 192))
+    input_data = np.expand_dims(input_data, axis=0).astype(np.uint8)
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+    keypoints = interpreter.get_tensor(output_details[0]['index'])
+    return keypoints[0][0]  # shape (17, 3)
+
+# Posture counters
+good_frames = 0
+bad_frames = 0
+
+while cap.isOpened():
+    success, frame = cap.read()
+    if not success:
+        break
+
+    h, w = frame.shape[:2]
+    keypoints = process_frame(frame)
+
+    if keypoints.shape[0] < 13:
+        print("????? keypoints ??????? ???????????")
+        continue
+
+    # Get keypoints
+    l_shldr_x, l_shldr_y = int(keypoints[5][0] * w), int(keypoints[5][1] * h)
+    r_shldr_x, r_shldr_y = int(keypoints[6][0] * w), int(keypoints[6][1] * h)
+    l_ear_x, l_ear_y = int(keypoints[7][0] * w), int(keypoints[7][1] * h)
+    r_ear_x, r_ear_y = int(keypoints[8][0] * w), int(keypoints[8][1] * h)
+    l_hip_x, l_hip_y = int(keypoints[11][0] * w), int(keypoints[11][1] * h)
+    r_hip_x, r_hip_y = int(keypoints[12][0] * w), int(keypoints[12][1] * h)
+
+    offset = findDistance(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
+
+    if offset < 100:
+        cv2.putText(frame, str(int(offset)) + ' Aligned', (w - 250, 30), font, 0.9, green, 2)
+    else:
+        cv2.putText(frame, str(int(offset)) + ' Not Aligned', (w - 250, 30), font, 0.9, red, 2)
+
+    neck_inclination = findAngle(l_shldr_x, l_shldr_y, l_ear_x, l_ear_y)
+    torso_inclination = findAngle(l_hip_x, l_hip_y, l_shldr_x, l_shldr_y)
+
+    cv2.circle(frame, (l_shldr_x, l_shldr_y), 7, yellow, -1)
+    cv2.circle(frame, (r_shldr_x, r_shldr_y), 7, yellow, -1)
+    cv2.circle(frame, (l_ear_x, l_ear_y), 7, yellow, -1)
+    cv2.circle(frame, (r_ear_x, r_ear_y), 7, yellow, -1)
+    cv2.line(frame, (l_shldr_x, l_shldr_y), (r_shldr_x, r_shldr_y), green, 4)
+
+    angle_text_string = f'Neck : {int(neck_inclination)}  Torso : {int(torso_inclination)}'
+
+    if neck_inclination < 40 and torso_inclination < 10:
+        good_frames += 1
+        cv2.putText(frame, angle_text_string, (10, 30), font, 0.9, green, 2)
+    else:
+        bad_frames += 1
+        cv2.putText(frame, angle_text_string, (10, 30), font, 0.9, red, 2)
+
+    good_time = (1 / fps) * good_frames
+    bad_time = (1 / fps) * bad_frames
+
+    if good_time > 0:
+        cv2.putText(frame, f'Good Posture Time : {round(good_time, 1)}s', (10, h - 20), font, 0.9, green, 2)
+    else:
+        cv2.putText(frame, f'Bad Posture Time : {round(bad_time, 1)}s', (10, h - 20), font, 0.9, red, 2)
+
+    video_writer.write(cv2.resize(frame, (640, 480)))
+    cv2.imshow("Posture Detection", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+video_writer.release()
+cv2.destroyAllWindows()
+
