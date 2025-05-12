@@ -40,3 +40,17 @@ source /home/raspberrypi5/myproject/venv/bin/activate
 # 4. ติดตั้ง simplejpeg จาก source
 pip install .
 
+
+from setuptools import setup, Extension
+
+jpeg_module = Extension(
+    'simplejpeg._jpeg',
+    sources=['jpeg.c'],
+)
+
+setup(
+    name='simplejpeg',
+    version='0.1',
+    packages=['simplejpeg'],
+    ext_modules=[jpeg_module],
+)
