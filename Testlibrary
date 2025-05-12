@@ -21,7 +21,8 @@ git clone https://github.com/silx-kit/simplejpeg.git
 cd simplejpeg
 python setup.py build
 python setup.py install
-
+or 
+git clone https://github.com/silx-kit/simplejpeg.git --depth 1
 python -c "import simplejpeg; print(simplejpeg.__version__)"
 
 fatal: Authentication failed for 'https://github.com/silx-kit/simplejpeg.git/'
