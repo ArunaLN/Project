@@ -12,3 +12,14 @@ frame = picam2.capture_array()
 cv2.imshow("Camera", frame)
 cv2.waitKey(0)
 
+source ~/myproject/venv/bin/activate
+pip uninstall -y simplejpeg numpy
+pip install numpy==1.24.4 cython
+sudo apt install -y libjpeg-dev build-essential
+
+git clone https://github.com/silx-kit/simplejpeg.git
+cd simplejpeg
+python setup.py build
+python setup.py install
+
+python -c "import simplejpeg; print(simplejpeg.__version__)"
