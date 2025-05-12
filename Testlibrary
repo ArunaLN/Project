@@ -25,8 +25,15 @@ or
 git clone https://github.com/silx-kit/simplejpeg.git --depth 1
 python -c "import simplejpeg; print(simplejpeg.__version__)"
 
-fatal: Authentication failed for 'https://github.com/silx-kit/simplejpeg.git/'
-bash: cd: simplejpeg: No such file or directory
-python: can't open file '/home/raspberrypi5/myproject/setup.py': [Errno 2] No such file or directory
-python: can't open file '/home/raspberrypi5/myproject/setup.py': [Errno 2] No such file or directory
+# 1. Clone repo
+git clone https://github.com/smurn/simplejpeg.git
+
+# 2. เข้าโฟลเดอร์โปรเจกต์
+cd simplejpeg
+
+# 3. เปิดใช้งาน venv ของคุณ
+source /home/raspberrypi5/myproject/venv/bin/activate
+
+# 4. ติดตั้ง simplejpeg จาก source
+pip install .
 
