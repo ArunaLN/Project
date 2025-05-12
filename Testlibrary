@@ -22,7 +22,10 @@ cd simplejpeg
 python setup.py build
 python setup.py install
 or 
-git clone https://github.com/silx-kit/simplejpeg.git --depth 1
+git clone https://github.com/jfolz/simplejpeg.git
+cd simplejpeg
+pip install 
+
 python -c "import simplejpeg; print(simplejpeg.__version__)"
 
 # 1. Clone repo
