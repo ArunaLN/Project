@@ -11,3 +11,14 @@ picam2.start()
 frame = picam2.capture_array()
 cv2.imshow("Camera", frame)
 cv2.waitKey(0)
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/__init__.py", line 11, in <module>
+  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/picamera2.py", line 27, in <module>
+  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/encoders/__init__.py", line 6, in <module>
+  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/encoders/jpeg_encoder.py", line 3, in <module>
+  File "/usr/lib/python3/dist-packages/simplejpeg/__init__.py", line 1, in <module>
+    from ._jpeg import encode_jpeg, encode_jpeg_yuv_planes
+  File "simplejpeg/_jpeg.pyx", line 1, in init simplejpeg._jpeg
+ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
