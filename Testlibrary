@@ -12,13 +12,140 @@ frame = picam2.capture_array()
 cv2.imshow("Camera", frame)
 cv2.waitKey(0)
 
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/__init__.py", line 11, in <module>
-  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/picamera2.py", line 27, in <module>
-  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/encoders/__init__.py", line 6, in <module>
-  File "/usr/local/lib/python3.11/dist-packages/picamera2-0.3.20-py3.11.egg/picamera2/encoders/jpeg_encoder.py", line 3, in <module>
-  File "/usr/lib/python3/dist-packages/simplejpeg/__init__.py", line 1, in <module>
-    from ._jpeg import encode_jpeg, encode_jpeg_yuv_planes
-  File "simplejpeg/_jpeg.pyx", line 1, in init simplejpeg._jpeg
-ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
+error: subprocess-exited-with-error
+
+                × pip subprocess to install build dependencies did not run successfully.
+                │ exit code: 2
+                ╰─> See above for output.
+
+                note: This error originates from a subprocess, and is likely not a problem with pip.
+                full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-ppg8_fu7/overlay --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- 'setuptools>=61.2' 'setuptools_scm[toml]>=3.4.1'
+                cwd: [inherit]
+                Installing build dependencies: finished with status 'error'
+              error: subprocess-exited-with-error
+
+              × pip subprocess to install build dependencies did not run successfully.
+              │ exit code: 2
+              ╰─> See above for output.
+
+              note: This error originates from a subprocess, and is likely not a problem with pip.
+              error: subprocess-exited-with-error
+
+              × pip subprocess to install build dependencies did not run successfully.
+              │ exit code: 1
+              ╰─> See above for output.
+
+              note: This error originates from a subprocess, and is likely not a problem with pip.
+              full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-sdelxidz/overlay --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- 'setuptools>=45.0' 'setuptools-scm[toml]>=6.2.3'
+              cwd: [inherit]
+              Installing build dependencies: finished with status 'error'
+            error: subprocess-exited-with-error
+
+            × pip subprocess to install build dependencies did not run successfully.
+            │ exit code: 1
+            ╰─> See above for output.
+
+            note: This error originates from a subprocess, and is likely not a problem with pip.
+            error: subprocess-exited-with-error
+
+            × pip subprocess to install backend dependencies did not run successfully.
+            │ exit code: 1
+            ╰─> See above for output.
+
+            note: This error originates from a subprocess, and is likely not a problem with pip.
+            full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-1gtkv17d/normal --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- trove-classifiers 'pluggy>=1.0.0' 'packaging>=24.2' 'tomli>=1.2.2; python_version < '"'"'3.11'"'"'' 'pathspec>=0.10.1'
+            cwd: [inherit]
+            Installing backend dependencies: finished with status 'error'
+          error: subprocess-exited-with-error
+
+          × pip subprocess to install backend dependencies did not run successfully.
+          │ exit code: 1
+          ╰─> See above for output.
+
+          note: This error originates from a subprocess, and is likely not a problem with pip.
+          error: subprocess-exited-with-error
+
+          × pip subprocess to install build dependencies did not run successfully.
+          │ exit code: 1
+          ╰─> See above for output.
+
+          note: This error originates from a subprocess, and is likely not a problem with pip.
+          full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-b0nm70dh/overlay --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- hatchling hatch-vcs
+          cwd: [inherit]
+          Installing build dependencies: finished with status 'error'
+        error: subprocess-exited-with-error
+
+        × pip subprocess to install build dependencies did not run successfully.
+        │ exit code: 1
+        ╰─> See above for output.
+
+        note: This error originates from a subprocess, and is likely not a problem with pip.
+        error: subprocess-exited-with-error
+
+        × pip subprocess to install build dependencies did not run successfully.
+        │ exit code: 1
+        ╰─> See above for output.
+
+        note: This error originates from a subprocess, and is likely not a problem with pip.
+        full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-ekq99gc3/overlay --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- 'scikit-build-core>=0.10'
+        cwd: [inherit]
+        Installing build dependencies: finished with status 'error'
+      error: subprocess-exited-with-error
+
+      × pip subprocess to install build dependencies did not run successfully.
+      │ exit code: 1
+      ╰─> See above for output.
+
+      note: This error originates from a subprocess, and is likely not a problem with pip.
+      error: subprocess-exited-with-error
+
+      × pip subprocess to install backend dependencies did not run successfully.
+      │ exit code: 1
+      ╰─> See above for output.
+
+      note: This error originates from a subprocess, and is likely not a problem with pip.
+      full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-_ofmfzgc/normal --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- 'patchelf >= 0.11.0'
+      cwd: [inherit]
+      Installing backend dependencies: finished with status 'error'
+    error: subprocess-exited-with-error
+
+    × pip subprocess to install backend dependencies did not run successfully.
+    │ exit code: 1
+    ╰─> See above for output.
+
+    note: This error originates from a subprocess, and is likely not a problem with pip.
+    error: subprocess-exited-with-error
+
+    × pip subprocess to install build dependencies did not run successfully.
+    │ exit code: 1
+    ╰─> See above for output.
+
+    note: This error originates from a subprocess, and is likely not a problem with pip.
+    full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-me9kaspi/overlay --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple --extra-index-url https://www.piwheels.org/simple -- 'meson-python>=0.15.0' 'Cython>=3.0.6'
+    cwd: [inherit]
+    Installing build dependencies: finished with status 'error'
+  error: subprocess-exited-with-error
+
+  × pip subprocess to install build dependencies did not run successfully.
+  │ exit code: 1
+  ╰─> See above for output.
+
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+  error: subprocess-exited-with-error
+  
+  × pip subprocess to install build dependencies did not run successfully.
+  │ exit code: 1
+  ╰─> See above for output.
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+  full command: /home/raspberrypi5/myproject/venv/bin/python3.9 /home/raspberrypi5/myproject/venv/lib/python3.9/site-packages/pip/__pip-runner__.py install --ignore-installed --no-user --prefix /tmp/pip-build-env-a02pecyz/overlay --no-warn-script-location --disable-pip-version-check --no-compile --target '' -v --no-binary :all: --only-binary :none: -i https://pypi.org/simple --extra-index-url https://www.piwheels.org/simple -- 'setuptools>=74.1.1' wheel 'cython~=3.0.0' 'numpy>=2.0.0'
+  cwd: [inherit]
+  Installing build dependencies ... error
+error: subprocess-exited-with-error
+
+× pip subprocess to install build dependencies did not run successfully.
+│ exit code: 1
+╰─> See above for output.
+
+note: This error originates from a subprocess, and is likely not a problem with pip.
+ got 88 from PyObject
