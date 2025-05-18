@@ -1,0 +1,94 @@
+import cv2
+import numpy as np
+from hailo_platform import pcie
+from hailo_model_zoo.core.infer import infer_from_model_zoo
+import time
+
+# --- [1] Setup YOLO Pose Model from Hailo ---
+model_name = "yolov8s_pose_hailo"  # โมเดลต้องถูกกำหนดไว้ใน model zoo config
+pcie.configure()
+pose_runner = infer_from_model_zoo(model_name)
+
+# --- [2] กล้อง (หรือวิดีโอ) ---
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    print("Error: Cannot open camera.")
+    exit()
+
+# --- [3] Posture Detection Variables ---
+good_frames = 0
+bad_frames = 0
+fps = 10
+font = cv2.FONT_HERSHEY_SIMPLEX
+
+# --- [4] คำนวณมุมจากจุด (keypoints) ---
+def find_angle(x1, y1, x2, y2):
+    if y1 == 0 or y2 == 0:
+        return None
+    try:
+        theta = np.arccos((y2 - y1) * (-y1) / (np.sqrt((x2 - x1)**2 + (y2 - y1)**2) * y1))
+        return np.degrees(theta)
+    except:
+        return None
+
+# --- [5] Loop ตรวจจับ ---
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    results = pose_runner.infer(frame.copy())
+
+    for det in results:
+        if det.label != 'person':
+            continue
+
+        keypoints = det.keypoints  # shape: [17, 3] → x, y, confidence
+
+        if keypoints is None or len(keypoints) < 8:
+            continue
+
+        # ตัวอย่าง: ใช้ไหล่ (5), หู (3), สะโพก (11) จาก COCO keypoints
+        shoulder = keypoints[5]  # left shoulder
+        ear = keypoints[3]       # left ear
+        hip = keypoints[11]      # left hip
+
+        x_s, y_s = int(shoulder[0]), int(shoulder[1])
+        x_e, y_e = int(ear[0]), int(ear[1])
+        x_h, y_h = int(hip[0]), int(hip[1])
+
+        neck_angle = find_angle(x_s, y_s, x_e, y_e)
+        torso_angle = find_angle(x_h, y_h, x_s, y_s)
+
+        if neck_angle is None or torso_angle is None:
+            cv2.putText(frame, "Calculating...", (20, 40), font, 0.8, (255, 255, 0), 2)
+            continue
+
+        if neck_angle < 40 and torso_angle < 10:
+            good_frames += 1
+            bad_frames = 0
+            color = (0, 255, 0)
+            text = "Good Posture"
+        else:
+            good_frames = 0
+            bad_frames += 1
+            color = (0, 0, 255)
+            text = "Bad Posture"
+
+        cv2.putText(frame, f"{text} N:{int(neck_angle)} T:{int(torso_angle)}", (20, 40), font, 0.8, color, 2)
+
+        bad_time = bad_frames / fps
+        if bad_time > 180:
+            cv2.putText(frame, "WARNING: BAD POSTURE > 180s!", (20, 460), font, 0.8, (0, 0, 255), 2)
+
+        # วาด keypoints
+        for x, y, conf in keypoints:
+            if conf > 0.3:
+                cv2.circle(frame, (int(x), int(y)), 3, color, -1)
+
+    cv2.imshow("YOLOv8 Pose Detection", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
