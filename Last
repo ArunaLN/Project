@@ -1,0 +1,330 @@
+import cv2
+import math
+import time
+from picamera2 import Picamera2
+from ultralytics import YOLO
+import RPi.GPIO as GPIO
+
+def findAngle(x1, y1, x2, y2):
+    """คำนวณมุมระหว่างเส้นที่ลากจากจุด (x1, y1) ไปยังจุด (x2, y2) เทียบกับแนวตั้ง"""
+    # คำนวณมุมในแนวตั้ง
+    delta_x = x2 - x1
+    delta_y = y1 - y2  # กลับทิศทางของ y เพื่อให้มุมออกมาถูกต้อง
+    
+    # คำนวณมุมในหน่วยเรเดียน
+    angle_rad = math.atan2(delta_x, delta_y)
+    
+    # แปลงเป็นองศา
+    angle_deg = math.degrees(angle_rad)
+    
+    # ปรับให้มุมอยู่ในช่วง 0-180 องศา
+    if angle_deg > 90:
+        angle_deg -= 180
+    elif angle_deg < -90:
+        angle_deg += 180
+    
+    return angle_deg
+
+def get_normalized_to_pixel_coordinates(normalized_x, normalized_y, image_width, image_height):
+    """แปลงพิกัดแบบ normalized (0-1) เป็นพิกัดจริงในภาพ (pixels)"""
+    pixel_x = int(normalized_x * image_width)
+    pixel_y = int(normalized_y * image_height)
+    return pixel_x, pixel_y
+
+def detect_side_view_person(results):
+    """ตรวจสอบว่าคนในภาพอยู่ในท่า side view หรือไม่"""
+    try:
+        keypoints = results[0].keypoints.xyn[0]
+        left_shoulder = keypoints[5]   # left shoulder
+        right_shoulder = keypoints[6]  # right shoulder
+        
+        # คำนวณระยะห่างใน x-axis
+        shoulder_x_diff = abs(left_shoulder[0].item() - right_shoulder[0].item())
+        
+        # ถ้าระยะห่างน้อย แสดงว่าเป็น side view
+        return shoulder_x_diff < 0.1  # threshold สำหรับ side view
+    except:
+        return False
+
+def detect_side_view_direction(results):
+    """ตรวจสอบทิศทางของ side view ว่าเป็นด้านซ้ายหรือด้านขวาของร่างกาย"""
+    try:
+        keypoints = results[0].keypoints.xyn[0]
+        confidences = results[0].keypoints.conf[0]
+        
+        left_ear_conf = confidences[3].item()  # left ear
+        right_ear_conf = confidences[4].item()  # right ear
+        
+        # ตรวจสอบหูที่มีค่า confidence สูงกว่า
+        if left_ear_conf > right_ear_conf:
+            return "right"  # ถ้าเห็นหูซ้ายชัดกว่า = ด้านขวาของร่างกาย
+        else:
+            return "left"   # ถ้าเห็นหูขวาชัดกว่า = ด้านซ้ายของร่างกาย
+    except:
+        return "left"
+
+# ตั้งค่า GPIO สำหรับ LED
+LED_PIN = 18  # GPIO pin สำหรับ LED (ปรับตามการต่อสายของคุณ)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED_PIN, GPIO.OUT)
+GPIO.output(LED_PIN, GPIO.LOW)  # ปิด LED เริ่มต้น
+
+# ตั้งค่ากล้อง Picamera2
+picam2 = Picamera2()
+preview_config = picam2.create_preview_configuration(main={"format": "RGB888", "size": (600, 600)})
+picam2.configure(preview_config)
+picam2.start()
+
+# โหลดโมเดล YOLO pose
+model = YOLO("yolo11m-pose.pt")
+
+# สีสำหรับการแสดงผล
+yellow = (0, 255, 255)
+pink = (255, 0, 255)
+green = (0, 255, 0)
+blue = (255, 0, 0)
+red = (0, 0, 255)
+white = (255, 255, 255)
+cyan = (255, 255, 0)
+
+# ตัวแปรสำหรับการนับเวลาและการจัดการ state - ท่าไม่ถูกต้อง
+bad_posture_start_time = 0
+is_in_bad_posture = False
+alert_start_time = 0
+is_showing_alert = False
+cooldown_start_time = 0
+is_in_cooldown = False
+BAD_POSTURE_THRESHOLD = 5  # เวลาที่ต้องนั่งท่าไม่ถูกต้องก่อนแจ้งเตือน (วินาที)
+ALERT_DURATION = 5  # ระยะเวลาแสดงการแจ้งเตือน (วินาที)
+COOLDOWN_DURATION = 5  # ระยะเวลา cooldown (วินาที)
+
+# ตัวแปรใหม่สำหรับการนับเวลาท่านั่งที่ถูกต้อง
+good_posture_start_time = 0
+is_in_good_posture = False
+good_posture_alert_start_time = 0
+is_showing_good_posture_alert = False
+good_posture_cooldown_start_time = 0
+is_in_good_posture_cooldown = False
+GOOD_POSTURE_THRESHOLD = 10  # เวลาที่ต้องนั่งท่าถูกต้องก่อนแจ้งเตือน (วินาที)
+GOOD_POSTURE_ALERT_DURATION = 5  # ระยะเวลาแสดงการแจ้งเตือนท่าถูกต้อง (วินาที)
+GOOD_POSTURE_COOLDOWN_DURATION = 5  # ระยะเวลา cooldown สำหรับท่าถูกต้อง (วินาที)
+
+try:
+    while True:
+        frame = picam2.capture_array()
+        height, width = frame.shape[:2]
+        current_time = time.time()
+        
+        results = model.predict(frame, imgsz=96, verbose=False)
+        annotated_frame = results[0].plot()
+        
+        # ตรวจสอบว่าพบคน
+        if len(results[0].keypoints.xyn) > 0:
+            keypoints = results[0].keypoints.xyn[0]
+            
+            # ตรวจสอบว่าเป็น side view หรือไม่
+            is_side_view = detect_side_view_person(results)
+            
+            # เพิ่มการแสดงผลว่าเป็น view แบบไหน
+            view_type = "Side View" if is_side_view else "Front/Back View"
+            cv2.putText(annotated_frame, f"View Type: {view_type}", 
+                      (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.8, cyan, 2)
+            
+            if is_side_view:
+                # ปิด LED เนื่องจากเป็น Side View แล้ว (พร้อมวิเคราะห์ท่านั่ง)
+                GPIO.output(LED_PIN, GPIO.LOW)
+                
+                # ตรวจสอบทิศทางของ side view (ซ้าย/ขวา)
+                side_direction = detect_side_view_direction(results)
+                
+                # กำหนดจุดตามทิศทางที่พบ
+                if side_direction == "left":
+                    # มุมมองด้านซ้าย - ใช้จุดข้างขวาของร่างกาย
+                    ear_idx, shldr_idx, hip_idx = 4, 6, 12  # right ear, right shoulder, right hip
+                    color = pink  # สีชมพูสำหรับด้านขวาของร่างกาย
+                else:
+                    # มุมมองด้านขวา - ใช้จุดข้างซ้ายของร่างกาย
+                    ear_idx, shldr_idx, hip_idx = 3, 5, 11  # left ear, left shoulder, left hip
+                    color = yellow  # สีเหลืองสำหรับด้านซ้ายของร่างกาย
+                
+                # แปลงพิกัดจาก normalized เป็น pixel
+                ear_x, ear_y = get_normalized_to_pixel_coordinates(
+                    keypoints[ear_idx][0].item(), keypoints[ear_idx][1].item(), width, height)
+                shldr_x, shldr_y = get_normalized_to_pixel_coordinates(
+                    keypoints[shldr_idx][0].item(), keypoints[shldr_idx][1].item(), width, height)
+                hip_x, hip_y = get_normalized_to_pixel_coordinates(
+                    keypoints[hip_idx][0].item(), keypoints[hip_idx][1].item(), width, height)
+                
+                # คำนวณมุมเอียงของคอ (neck inclination) 
+                neck_inclination = findAngle(shldr_x, shldr_y, ear_x, ear_y)
+                
+                # คำนวณมุมเอียงของลำตัว (torso inclination)
+                torso_inclination = findAngle(hip_x, hip_y, shldr_x, shldr_y)
+                
+                # แสดงผลมุมบนภาพ
+                cv2.putText(annotated_frame, f"Neck Angle: {neck_inclination:.1f}°", 
+                            (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, white, 2)
+                cv2.putText(annotated_frame, f"Torso Angle: {torso_inclination:.1f}°", 
+                            (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, white, 2)
+                cv2.putText(annotated_frame, f"Direction: {side_direction.capitalize()} side", 
+                            (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.8, cyan, 2)
+                
+                # วาดจุดและเส้นสำหรับการแสดงมุม
+                cv2.circle(annotated_frame, (shldr_x, shldr_y), 7, color, -1)
+                cv2.circle(annotated_frame, (ear_x, ear_y), 7, color, -1)
+                cv2.circle(annotated_frame, (hip_x, hip_y), 7, color, -1)
+                
+                # วาดเส้นเชื่อมระหว่างจุด
+                cv2.line(annotated_frame, (shldr_x, shldr_y), (ear_x, ear_y), green, 2)  # คอ
+                cv2.line(annotated_frame, (shldr_x, shldr_y), (shldr_x, shldr_y - 100), blue, 2)  # แนวตั้งคอ
+                cv2.line(annotated_frame, (hip_x, hip_y), (shldr_x, shldr_y), green, 2)  # ลำตัว
+                cv2.line(annotated_frame, (hip_x, hip_y), (hip_x, hip_y - 100), blue, 2)  # แนวตั้งลำตัว
+                
+                # ตรวจสอบเงื่อนไขท่านั่งไม่ถูกต้อง
+                bad_neck_posture = neck_inclination > 30 or neck_inclination < 20
+                bad_torso_posture = torso_inclination > 10 or torso_inclination < 3
+                is_posture_bad = bad_neck_posture or bad_torso_posture
+                
+                # จัดการสถานะการแจ้งเตือนท่าไม่ถูกต้องและ cooldown
+                if is_in_cooldown:
+                    # อยู่ในช่วง cooldown ของท่าไม่ถูกต้อง
+                    cooldown_remaining = COOLDOWN_DURATION - (current_time - cooldown_start_time)
+                    if cooldown_remaining <= 0:
+                        is_in_cooldown = False
+                    else:
+                        # แสดงเวลา cooldown ที่เหลือ
+                        cv2.putText(annotated_frame, f"Bad Posture Cooldown: {cooldown_remaining:.1f}s", 
+                                   (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.8, cyan, 2)
+                elif is_showing_alert:
+                    # อยู่ในช่วงแสดงการแจ้งเตือนท่าไม่ถูกต้อง
+                    alert_remaining = ALERT_DURATION - (current_time - alert_start_time)
+                    if alert_remaining <= 0:
+                        # จบการแจ้งเตือน เริ่ม cooldown
+                        is_showing_alert = False
+                        cooldown_start_time = current_time
+                        is_in_cooldown = True
+                    else:
+                        # แสดงการแจ้งเตือนและเวลาที่เหลือ
+                        warning_text = "WARNING: INCORRECT SITTING POSTURE DETECTED!"
+                        cv2.putText(annotated_frame, warning_text, (10, 180), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, red, 2)
+                        cv2.putText(annotated_frame, f"Alert time: {alert_remaining:.1f}s", 
+                                   (10, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.8, red, 2)
+                        
+                        # แสดงรายละเอียดว่าส่วนไหนที่ไม่ถูกต้อง
+                        if bad_neck_posture:
+                            cv2.putText(annotated_frame, "Neck angle is incorrect", 
+                                       (10, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.7, red, 2)
+                        if bad_torso_posture:
+                            cv2.putText(annotated_frame, "Torso angle is incorrect", 
+                                       (10, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, red, 2)
+                elif is_posture_bad:
+                    if not is_in_bad_posture:
+                        # เริ่มนับเวลาท่านั่งไม่ถูกต้อง
+                        bad_posture_start_time = current_time
+                        is_in_bad_posture = True
+                        # รีเซ็ตตัวแปรท่าถูกต้อง
+                        is_in_good_posture = False
+                    else:
+                        # คำนวณเวลาที่อยู่ในท่านั่งไม่ถูกต้อง
+                        bad_posture_duration = current_time - bad_posture_start_time
+                        
+                        # แสดงระยะเวลาที่อยู่ในท่าไม่ถูกต้อง
+                        cv2.putText(annotated_frame, f"Bad posture time: {bad_posture_duration:.1f}s", 
+                                   (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, red, 2)
+                        
+                        # หากอยู่ในท่าไม่ถูกต้องครบ 5 วินาที ให้เริ่มแจ้งเตือน
+                        if bad_posture_duration >= BAD_POSTURE_THRESHOLD:
+                            alert_start_time = current_time
+                            is_showing_alert = True
+                            is_in_bad_posture = False
+                else:
+                    # กลับมาอยู่ในท่าที่ถูกต้อง ล้างการนับเวลาท่าไม่ถูกต้อง
+                    is_in_bad_posture = False
+                
+                # === จัดการสถานะการแจ้งเตือนท่าถูกต้องและ cooldown ===
+                if not is_posture_bad and not is_in_cooldown and not is_showing_alert:
+                    # อยู่ในท่าถูกต้องและไม่ได้อยู่ในช่วงแจ้งเตือนท่าไม่ถูกต้อง
+                    
+                    if is_in_good_posture_cooldown:
+                        # อยู่ในช่วง cooldown ของท่าถูกต้อง
+                        good_cooldown_remaining = GOOD_POSTURE_COOLDOWN_DURATION - (current_time - good_posture_cooldown_start_time)
+                        if good_cooldown_remaining <= 0:
+                            is_in_good_posture_cooldown = False
+                        else:
+                            # แสดงเวลา cooldown ที่เหลือ
+                            cv2.putText(annotated_frame, f"Good Posture Cooldown: {good_cooldown_remaining:.1f}s", 
+                                       (10, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.8, green, 2)
+                    elif is_showing_good_posture_alert:
+                        # อยู่ในช่วงแสดงการแจ้งเตือนท่าถูกต้อง
+                        good_alert_remaining = GOOD_POSTURE_ALERT_DURATION - (current_time - good_posture_alert_start_time)
+                        if good_alert_remaining <= 0:
+                            # จบการแจ้งเตือน เริ่ม cooldown
+                            is_showing_good_posture_alert = False
+                            good_posture_cooldown_start_time = current_time
+                            is_in_good_posture_cooldown = True
+                        else:
+                            # แสดงการแจ้งเตือนและเวลาที่เหลือ
+                            good_warning_text = "GOOD JOB! You've been sitting correctly!"
+                            cv2.putText(annotated_frame, good_warning_text, (10, 280), 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, green, 2)
+                            cv2.putText(annotated_frame, f"Good Alert time: {good_alert_remaining:.1f}s", 
+                                       (10, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.8, green, 2)
+                    else:
+                        # นับเวลาท่านั่งถูกต้อง
+                        if not is_in_good_posture:
+                            # เริ่มนับเวลาท่านั่งถูกต้อง
+                            good_posture_start_time = current_time
+                            is_in_good_posture = True
+                        else:
+                            # คำนวณเวลาที่อยู่ในท่านั่งถูกต้อง
+                            good_posture_duration = current_time - good_posture_start_time
+                            
+                            # แสดงระยะเวลาที่อยู่ในท่าถูกต้อง
+                            cv2.putText(annotated_frame, f"Good posture time: {good_posture_duration:.1f}s", 
+                                       (10, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.8, green, 2)
+                            
+                            # หากอยู่ในท่าถูกต้องครบ 10 วินาที ให้เริ่มแจ้งเตือน
+                            if good_posture_duration >= GOOD_POSTURE_THRESHOLD:
+                                good_posture_alert_start_time = current_time
+                                is_showing_good_posture_alert = True
+                                is_in_good_posture = False
+                else:
+                    # ไม่อยู่ในท่าถูกต้อง รีเซ็ตการนับเวลา
+                    is_in_good_posture = False
+                    
+            else:
+                # กรณีเป็น Front/Back View - เปิด LED เพื่อแจ้งเตือนให้หันไปด้านข้าง
+                GPIO.output(LED_PIN, GPIO.HIGH)
+                cv2.putText(annotated_frame, "* Side view required for posture analysis *", 
+                          (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, yellow, 2)
+                # รีเซ็ตตัวแปรทั้งหมด
+                is_in_bad_posture = False
+                is_in_good_posture = False
+        else:
+            # ไม่พบคนในภาพ - เปิด LED เพื่อแจ้งเตือน
+            GPIO.output(LED_PIN, GPIO.HIGH)
+            cv2.putText(annotated_frame, "* No person detected *", 
+                      (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, red, 2)
+            # รีเซ็ตตัวแปรทั้งหมด
+            is_in_bad_posture = False
+            is_in_good_posture = False
+        
+        # แสดง FPS บนจอ
+        inference_time = results[0].speed['inference']
+        fps = 1000 / inference_time if inference_time > 0 else 0
+        cv2.putText(annotated_frame, f"FPS: {fps:.1f}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, white, 2)
+        
+        # แสดงผลภาพ
+        cv2.imshow("Posture Analysis", annotated_frame)
+        
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+finally:
+    # ปิด LED และ cleanup GPIO
+    GPIO.output(LED_PIN, GPIO.LOW)
+    GPIO.cleanup()
+    picam2.close()
+    cv2.destroyAllWindows()
